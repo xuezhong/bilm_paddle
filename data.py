@@ -3,6 +3,7 @@ import glob
 import random
 
 import numpy as np
+import io
 
 # from typing import List
 
@@ -29,10 +30,10 @@ class Vocabulary(object):
         self._bos = -1
         self._eos = -1
 
-        with open(filename) as f:
+        with io.open(filename, 'r', encoding='utf-8') as f:
             idx = 0
             for line in f:
-                word_name = line.strip().decode(encoding='utf-8')
+                word_name = line.strip()
                 if word_name == '<S>':
                     self._bos = idx
                 elif word_name == '</S>':
@@ -188,7 +189,8 @@ class UnicodeCharsVocabulary(Vocabulary):
         '''
         if split:
             chars_ids = [
-                self.word_to_char_ids(cur_word) for cur_word in sentence.split()
+                self.word_to_char_ids(cur_word)
+                for cur_word in sentence.split()
             ]
         else:
             chars_ids = [
@@ -213,7 +215,8 @@ class Batcher(object):
         max_token_length = the maximum number of characters in each token
         '''
         max_token_length = int(max_token_length)
-        self._lm_vocab = UnicodeCharsVocabulary(lm_vocab_file, max_token_length)
+        self._lm_vocab = UnicodeCharsVocabulary(lm_vocab_file,
+                                                max_token_length)
         self._max_token_length = max_token_length
 
     # def batch_sentences(self, sentences: List[List[str]]):
@@ -399,16 +402,8 @@ class LMDataset(object):
             list of (id, char_id) tuples.
         """
         print('Loading data from: %s' % shard_name)
-        with open(shard_name) as f:
+        with io.open(shard_name, 'r', encoding='utf-8') as f:
             sentences_raw = f.readlines()
-            new = []
-            for x in sentences_raw:
-                try:
-                    new.append(x.strip().decode(encoding='utf-8'))
-                except:
-                    print('error encoding {}'.format(x))
-                    continue
-            sentences_raw = new
 
         if self._reverse:
             sentences = []
@@ -424,7 +419,8 @@ class LMDataset(object):
             random.shuffle(sentences)
 
         ids = [
-            self.vocab.encode(sentence, self._reverse) for sentence in sentences
+            self.vocab.encode(sentence, self._reverse)
+            for sentence in sentences
         ]
         if self._use_char_inputs:
             chars_ids = [

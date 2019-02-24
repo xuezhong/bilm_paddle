@@ -313,7 +313,8 @@ def print_para(train_prog, train_exe, logger, optimizer=None, args=None):
                 logger.info("grad para: {0} failed".format(p_name))
                 continue
             param_num = np.prod(p_array.shape)
-            var_print('grad para', p_array, p_name, p_name, args.detail, logger)
+            var_print('grad para', p_array, p_name, p_name, args.detail,
+                      logger)
         if optimizer:
             for p_name in param_name_list:
                 acc_str = 'moment'
@@ -770,11 +771,12 @@ def train_loop(args,
                 return_numpy=False)
             cost_train = np.array(fetch_outs[0]).mean()
             last_hidden_values = np.array(fetch_outs[1])
-            last_hidden_values = last_hidden_values.reshape(
-                (dev_count, args.num_layers * 2 * batch_size * args.embed_size))
+            last_hidden_values = last_hidden_values.reshape((
+                dev_count, args.num_layers * 2 * batch_size * args.embed_size))
             last_cell_values = np.array(fetch_outs[2])
-            last_cell_values = last_cell_values.reshape((
-                dev_count, args.num_layers * 2 * batch_size * args.hidden_size))
+            last_cell_values = last_cell_values.reshape(
+                (dev_count,
+                 args.num_layers * 2 * batch_size * args.hidden_size))
 
             #vars = fetch_outs[2:2+len(names)]
             #grad_vars = fetch_outs[2+len(names):]
@@ -797,8 +799,8 @@ def train_loop(args,
                 n_batch_loss = 0.0
                 n_batch_cnt = 0
             if batch_id > 0 and batch_id % args.dev_interval == 0:
-                valid_ppl = eval(vocab, infer_prog, model.feed_order, dev_count,
-                                 model.loss, place, logger, args)
+                valid_ppl = eval(vocab, infer_prog, model.feed_order,
+                                 dev_count, model.loss, place, logger, args)
                 logger.info("valid ppl {}".format(valid_ppl))
             if batch_id > 0 and batch_id % args.save_interval == 0:
                 model_path = os.path.join("model_new/",

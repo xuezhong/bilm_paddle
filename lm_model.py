@@ -170,7 +170,8 @@ class LanguageModel(object):
 
         init_hiddens_ = layers.data(
             name="init_hiddens", shape=[1], dtype='float32')
-        init_cells_ = layers.data(name="init_cells", shape=[1], dtype='float32')
+        init_cells_ = layers.data(
+            name="init_cells", shape=[1], dtype='float32')
 
         if args.debug:
             layers.Print(init_cells_, message='init_cells_', summarize=10)
@@ -186,7 +187,8 @@ class LanguageModel(object):
         init_cell = layers.slice(
             init_cells, axes=[0], starts=[0], ends=[num_layers])
         init_hidden_r = layers.slice(
-            init_hiddens, axes=[0], starts=[num_layers], ends=[2 * num_layers])
+            init_hiddens, axes=[0], starts=[num_layers],
+            ends=[2 * num_layers])
         init_cell_r = layers.slice(
             init_cells, axes=[0], starts=[num_layers], ends=[2 * num_layers])
 

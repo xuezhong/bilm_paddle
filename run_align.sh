@@ -1,4 +1,4 @@
-export CUDA_VISIBLE_DEVICES=3 
+export CUDA_VISIBLE_DEVICES=6 
 FLAGS_debug_print=false python  train.py \
 --train_path='baike/train/sentence_file_*'  \
 --test_path='baike/dev/sentence_file_*'  \

@@ -41,5 +41,3 @@ export NCCL_DEBUG=INFO
 #export NCCL_IB_GDR_LEVEL=4
 export NCCL_IB_GID_INDEX=3
 #export NCCL_SOCKET_IFNAME=eth2
-
-
