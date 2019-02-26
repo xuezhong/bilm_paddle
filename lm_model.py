@@ -21,8 +21,8 @@ import paddle.fluid as fluid
 import numpy as np
 
 
-def dropout(input, args):
-    if args.dropout:
+def dropout(input, test_mode, args):
+    if args.dropout and (not test_mode):
         return layers.dropout(
             input,
             dropout_prob=args.dropout,
@@ -32,7 +32,7 @@ def dropout(input, args):
         return input
 
 
-def lstmp_encoder(input_seq, gate_size, h_0, c_0, para_name, proj_size, args):
+def lstmp_encoder(input_seq, gate_size, h_0, c_0, para_name, proj_size, test_mode, args):
     # A lstm encoder implementation with projection.
     # Linear transformation part for input gate, output gate, forget gate
     # and cell activation vectors need be done outside of dynamic_lstm.
@@ -44,7 +44,7 @@ def lstmp_encoder(input_seq, gate_size, h_0, c_0, para_name, proj_size, args):
     else:
         init = None
         init_b = None
-    input_seq = dropout(input_seq, args)
+    input_seq = dropout(input_seq, test_mode, args)
     input_proj = layers.fc(input=input_seq,
                            param_attr=fluid.ParamAttr(
                                name=para_name + '_gate_w', initializer=init),
@@ -79,6 +79,7 @@ def encoder(x,
             para_name='',
             custom_samples=None,
             custom_probabilities=None,
+            test_mode=False,
             args=None):
     x_emb = layers.embedding(
         input=x,
@@ -92,7 +93,7 @@ def encoder(x,
     cells = []
     projs = []
     for i in range(args.num_layers):
-        rnn_input = dropout(rnn_input, args)
+        rnn_input = dropout(rnn_input, test_mode, args)
         if init_hidden and init_cell:
             h0 = layers.squeeze(
                 layers.slice(
@@ -106,12 +107,12 @@ def encoder(x,
             h0 = c0 = None
         rnn_out, cell, input_proj = lstmp_encoder(
             rnn_input, args.hidden_size, h0, c0,
-            para_name + 'layer{}'.format(i + 1), emb_size, args)
+            para_name + 'layer{}'.format(i + 1), emb_size, test_mode, args)
         rnn_out_ori = rnn_out
         if i > 0:
             rnn_out = rnn_out + rnn_input
-        rnn_out = dropout(rnn_out, args)
-        cell = dropout(cell, args)
+        rnn_out = dropout(rnn_out, test_mode, args)
+        cell = dropout(cell, test_mode, args)
         rnn_outs.append(rnn_out)
         rnn_outs_ori.append(rnn_out_ori)
         rnn_input = rnn_out
@@ -127,17 +128,13 @@ def encoder(x,
 
     projection = layers.reshape(projection, shape=[-1, vocab_size])
 
-    if args.sample_softmax:
+    if args.sample_softmax and (not test_mode):
         loss = layers.sampled_softmax_with_cross_entropy(
             logits=projection,
             label=y,
             num_samples=args.n_negative_samples_batch,
             seed=args.random_seed)
         if args.debug:
-            layers.Print(samples, message='samples', summarize=500)
-            layers.Print(
-                sampled_logits, message='sampled_logits', summarize=100)
-            layers.Print(sampled_label, message='sampled_label', summarize=100)
             layers.Print(loss, message='out_loss', summarize=100)
     else:
         label = layers.one_hot(input=y, depth=vocab_size)
@@ -147,9 +144,10 @@ def encoder(x,
 
 
 class LanguageModel(object):
-    def __init__(self, args, vocab_size):
+    def __init__(self, args, vocab_size, test_mode):
         self.args = args
         self.vocab_size = vocab_size
+        self.test_mode = test_mode
 
     def build(self):
         args = self.args
@@ -223,6 +221,7 @@ class LanguageModel(object):
             para_name='fw_',
             custom_samples=custom_samples,
             custom_probabilities=custom_probabilities,
+            test_mode=self.test_mode,
             args=args)
         backward, bw_hiddens, bw_hiddens_ori, bw_cells, bw_projs = encoder(
             x_b,
@@ -234,6 +233,7 @@ class LanguageModel(object):
             para_name='bw_',
             custom_samples=custom_samples_r,
             custom_probabilities=custom_probabilities,
+            test_mode=self.test_mode,
             args=args)
 
         losses = layers.concat([forward[-1], backward[-1]])

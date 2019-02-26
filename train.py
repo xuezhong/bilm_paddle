@@ -449,18 +449,37 @@ def prepare_input(batch, epoch_id=0, with_lr=True):
     return inst
 
 
-def eval(vocab, inference_program, feed_order, dev_count, loss, place, logger,
+def eval(vocab, infer_progs, dev_count, logger,
          args):
+    infer_prog, infer_startup_prog, infer_model = infer_progs
+    feed_order = infer_model.feed_order
+    loss = infer_model.loss 
     parallel_executor = fluid.ParallelExecutor(
-        main_program=inference_program, use_cuda=bool(args.use_gpu))
+        main_program=infer_prog, use_cuda=bool(args.use_gpu))
 
+    # prepare device
+    place = core.CUDAPlace(0) if args.use_gpu else core.CPUPlace()
+    exe = Executor(place)
+    if not args.use_gpu:
+        place = fluid.CPUPlace()
+        import multiprocessing
+        dev_count = int(os.environ.get('CPU_NUM', multiprocessing.cpu_count()))
+    else:
+        place = fluid.CUDAPlace(0)
+        dev_count = fluid.core.get_cuda_device_count()
+
+    if args.para_print:
+        with open("infer_program.desc", 'w') as f:
+            print(str(infer_prog), file=f)
+
+    # todo infer_startup_prog is not used, implicitly training scope will be used
     # Use test set as validation each pass
     total_loss = 0.0
     total_cnt = 0
     n_batch_cnt = 0
     n_batch_loss = 0.0
     val_feed_list = [
-        inference_program.global_block().var(var_name)
+        infer_prog.global_block().var(var_name)
         for var_name in feed_order
     ]
     val_feeder = fluid.DataFeeder(val_feed_list, place)
@@ -524,19 +543,28 @@ def train():
     logger.info("finished load vocab")
 
     logger.info('build the model...')
-    # clone from default main program and use it as the validation program
     # build model
     train_prog = fluid.Program()
-    startup_prog = fluid.Program()
+    train_startup_prog = fluid.Program()
     if args.enable_ce:
         train_prog.random_seed = args.random_seed
-        startup_prog.random_seed = args.random_seed
-    with fluid.program_guard(train_prog, startup_prog):
+        train_startup_prog.random_seed = args.random_seed
+
+    # build infer model
+    infer_prog = fluid.Program()
+    infer_startup_prog = fluid.Program()
+    with fluid.program_guard(infer_prog, infer_startup_prog):
+        with fluid.unique_name.guard():
+            # Infer process
+            infer_model = lm_model.LanguageModel(args, vocab_size, test_mode=True)
+            infer_model.build()
+    infer_progs = infer_prog, infer_startup_prog, infer_model
+
+    with fluid.program_guard(train_prog, train_startup_prog):
         with fluid.unique_name.guard():
             # Training process
-            model = lm_model.LanguageModel(args, vocab_size)
-            model.build()
-            infer_prog = train_prog.clone(for_test=True)
+            train_model = lm_model.LanguageModel(args, vocab_size, test_mode=False)
+            train_model.build()
             fluid.clip.set_gradient_clip(
                 clip=fluid.clip.GradientClipByGlobalNorm(
                     clip_norm=args.max_grad_norm))
@@ -559,16 +587,16 @@ def train():
             else:
                 logger.error('Unsupported optimizer: {}'.format(args.optim))
                 exit(-1)
-            optimizer.minimize(model.loss * args.num_steps)
+            optimizer.minimize(train_model.loss * args.num_steps)
 
             # initialize parameters
             place = core.CUDAPlace(0) if args.use_gpu else core.CPUPlace()
             exe = Executor(place)
+    train_progs = train_prog, train_startup_prog, train_model
 
     if args.local:
         logger.info("local start_up:")
-        train_loop(args, logger, vocab, train_prog, startup_prog, infer_prog,
-                   model, optimizer)
+        train_loop(args, logger, vocab, train_progs, infer_progs, optimizer)
     else:
         if args.update_method == "nccl2":
             trainer_id = int(os.getenv("PADDLE_TRAINER_ID", "0"))
@@ -601,9 +629,10 @@ def train():
                 trainers=worker_endpoints_env,
                 current_endpoint=current_endpoint,
                 program=train_prog,
-                startup_program=startup_prog)
-            train_loop(args, logger, vocab, train_prog, startup_prog,
-                       infer_prog, model, optimizer, trainers_num, trainer_id,
+                startup_program=train_startup_prog)
+            train_progs = train_prog, train_startup_prog, train_model
+            train_loop(args, logger, vocab, train_progs,
+                       infer_progs, optimizer, trainers_num, trainer_id,
                        worker_endpoints)
         else:
             port = os.getenv("PADDLE_PORT", "6174")
@@ -646,8 +675,8 @@ def train():
             elif training_role == "TRAINER":
                 logger.info("distributed: trainer started")
                 trainer_prog = t.get_trainer_program()
-                train_loop(args, logger, vocab, train_prog, startup_prog,
-                           infer_prog, model, optimizer)
+                train_loop(args, logger, vocab, train_progs,
+                           infer_progs,  optimizer)
             else:
                 logger.critical(
                     "environment var TRAINER_ROLE should be TRAINER os PSERVER")
@@ -657,14 +686,15 @@ def train():
 def train_loop(args,
                logger,
                vocab,
-               main_prog,
-               startup_prog,
-               infer_prog,
-               model,
+               train_progs,
+               infer_progs,
                optimizer,
                nccl2_num_trainers=1,
                nccl2_trainer_id=0,
                worker_endpoints=None):
+    train_prog, train_startup_prog, train_model = train_progs
+    infer_prog, infer_startup_prog, infer_model = infer_progs
+    
     # prepare device
     place = core.CUDAPlace(0) if args.use_gpu else core.CPUPlace()
     exe = Executor(place)
@@ -678,13 +708,13 @@ def train_loop(args,
 
     if args.load_dir:
         logger.info('load from {}'.format(args.load_dir))
-        fluid.io.load_persistables(exe, args.load_dir, main_program=main_prog)
+        fluid.io.load_persistables(exe, args.load_dir, main_program=train_prog)
     else:
-        exe.run(startup_prog)
+        exe.run(train_startup_prog)
 
     # prepare data
     feed_list = [
-        main_prog.global_block().var(var_name) for var_name in model.feed_order
+        train_prog.global_block().var(var_name) for var_name in train_model.feed_order
     ]
     feeder = fluid.DataFeeder(feed_list, place)
 
@@ -692,18 +722,18 @@ def train_loop(args,
     exe_strategy = fluid.parallel_executor.ExecutionStrategy()
     if args.para_print:
         exe_strategy.num_threads = 1
-        debug_init(main_prog, model.grad_vars, model.grad_vars_name)
+        debug_init(train_prog, train_model.grad_vars, train_model.grad_vars_name)
         with open("program.desc", 'w') as f:
-            print(str(main_prog), file=f)
+            print(str(train_prog), file=f)
     parallel_executor = fluid.ParallelExecutor(
-        loss_name=model.loss.name,
-        main_program=main_prog,
+        loss_name=train_model.loss.name,
+        main_program=train_prog,
         use_cuda=bool(args.use_gpu),
         exec_strategy=exe_strategy,
         num_trainers=nccl2_num_trainers,
         trainer_id=nccl2_trainer_id)
-    load_params(main_prog, parallel_executor, place, logger, args)
-    print_para(main_prog, parallel_executor, logger, optimizer, args)
+    load_params(train_prog, parallel_executor, place, logger, args)
+    print_para(train_prog, parallel_executor, logger, optimizer, args)
 
     logger.info("begin to load data")
     train_data = data.BidirectionalLMDataset(
@@ -765,8 +795,8 @@ def train_loop(args,
             fetch_outs = parallel_executor.run(
                 feed=feed,
                 fetch_list=[
-                    model.loss.name, model.last_hidden.name,
-                    model.last_cell.name
+                    train_model.loss.name, train_model.last_hidden.name,
+                    train_model.last_cell.name
                 ],  # + [x[0] for x in names] + [x[0] for x in grad_names],
                 return_numpy=False)
             cost_train = np.array(fetch_outs[0]).mean()
@@ -791,7 +821,7 @@ def train_loop(args,
 
             if batch_id > 0 and batch_id % log_interval == 0:
                 #vars_print(logger, args, vars=(vars, names), grad_vars=(grad_vars, grad_names))
-                print_para(main_prog, parallel_executor, logger, optimizer,
+                print_para(train_prog, parallel_executor, logger, optimizer,
                            args)
                 ppl = np.exp(n_batch_loss / n_batch_cnt)
                 logger.info("ppl from {} to {} is {} ".format(
@@ -799,8 +829,8 @@ def train_loop(args,
                 n_batch_loss = 0.0
                 n_batch_cnt = 0
             if batch_id > 0 and batch_id % args.dev_interval == 0:
-                valid_ppl = eval(vocab, infer_prog, model.feed_order,
-                                 dev_count, model.loss, place, logger, args)
+                valid_ppl = eval(vocab, infer_progs, 
+                                 dev_count, logger, args)
                 logger.info("valid ppl {}".format(valid_ppl))
             if batch_id > 0 and batch_id % args.save_interval == 0:
                 model_path = os.path.join("model_new/",
@@ -808,7 +838,7 @@ def train_loop(args,
                 if not os.path.isdir(model_path):
                     os.makedirs(model_path)
                 fluid.io.save_persistables(
-                    executor=exe, dirname=model_path, main_program=main_prog)
+                    executor=exe, dirname=model_path, main_program=train_prog)
             if args.detail and batch_id > 100:
                 exit()
 
@@ -825,11 +855,11 @@ def train_loop(args,
         if not os.path.isdir(model_path):
             os.makedirs(model_path)
         fluid.io.save_persistables(
-            executor=exe, dirname=model_path, main_program=main_prog)
-        valid_ppl = eval(vocab, infer_prog, model.feed_order, dev_count,
-                         model.loss, place, logger, args)
+            executor=exe, dirname=model_path, main_program=train_prog)
+        valid_ppl = eval(vocab, infer_progs, dev_count,
+                         logger, args)
         logger.info("valid ppl {}".format(valid_ppl))
-    test_ppl = eval(vocab, infer_prog, model.feed_order, dev_count, model.loss,
+    test_ppl = eval(vocab, infer_progs, dev_count,
                     place, logger, args)
     logger.info("test ppl {}".format(test_ppl))
 
