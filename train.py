@@ -454,8 +454,6 @@ def eval(vocab, infer_progs, dev_count, logger,
     infer_prog, infer_startup_prog, infer_model = infer_progs
     feed_order = infer_model.feed_order
     loss = infer_model.loss 
-    parallel_executor = fluid.ParallelExecutor(
-        main_program=infer_prog, use_cuda=bool(args.use_gpu))
 
     # prepare device
     place = core.CUDAPlace(0) if args.use_gpu else core.CPUPlace()
@@ -488,17 +486,54 @@ def eval(vocab, infer_progs, dev_count, logger,
     dev_data_iter = lambda: dev_data.iter_batches(args.batch_size, args.num_steps)
     dev_reader = read_multiple(dev_data_iter, dev_count)
 
+    last_hidden_values = np.zeros(
+	(dev_count, args.num_layers * 2 * args.batch_size * args.embed_size),
+	dtype='float32')
+    last_cell_values = np.zeros(
+	(dev_count, args.num_layers * 2 * args.batch_size * args.hidden_size),
+	dtype='float32')
     for batch_id, batch_list in enumerate(dev_reader(), 1):
         feed_data = batch_reader(batch_list, args)
-        val_fetch_outs = parallel_executor.run(
-            feed=list(val_feeder.feed_parallel(feed_data, dev_count)),
-            fetch_list=[loss.name],
-            return_numpy=False)
-        total_loss += np.array(val_fetch_outs[0]).sum()
+        feed = list(val_feeder.feed_parallel(feed_data, dev_count))
+        for i in range(dev_count):
+	    init_hidden_tensor = fluid.core.LoDTensor()
+	    if args.use_gpu:
+		placex = fluid.CUDAPlace(i)
+	    else:
+		placex = fluid.CPUPlace()
+	    init_hidden_tensor.set(last_hidden_values[i], placex)
+	    init_cell_tensor = fluid.core.LoDTensor()
+	    init_cell_tensor.set(last_cell_values[i], placex)
 
-        n_batch_cnt += len(np.array(val_fetch_outs[0]))
-        total_cnt += len(np.array(val_fetch_outs[0]))
-        n_batch_loss += np.array(val_fetch_outs[0]).sum()
+	    feed[i]['init_hiddens'] = init_hidden_tensor
+	    feed[i]['init_cells'] = init_cell_tensor
+        
+        #todo test pe has bug in r1.3
+        #import pdb; pdb.set_trace()
+        last_hidden_values = []
+        last_cell_values = []
+        for i in range(dev_count):
+            val_fetch_outs = exe.run(
+		program=infer_prog,
+                feed=feed[i],
+                fetch_list=[
+                    infer_model.loss.name, infer_model.last_hidden.name,
+                    infer_model.last_cell.name
+                ],  # + [x[0] for x in names] + [x[0] for x in grad_names],
+                return_numpy=False)
+            last_hidden_values.append(np.array(val_fetch_outs[1]))
+            last_cell_values.append(np.array(val_fetch_outs[2]))
+	    total_loss += np.array(val_fetch_outs[0]).sum()
+
+	    n_batch_cnt += len(np.array(val_fetch_outs[0]))
+	    total_cnt += len(np.array(val_fetch_outs[0]))
+	    n_batch_loss += np.array(val_fetch_outs[0]).sum()
+
+        last_hidden_values = np.array(last_hidden_values).reshape((
+            dev_count, args.num_layers * 2 * args.batch_size * args.embed_size))
+        last_cell_values = np.array(last_cell_values).reshape(
+            (dev_count,  args.num_layers * 2 * args.batch_size * args.hidden_size))
+
         log_every_n_batch = args.log_interval
         if log_every_n_batch > 0 and batch_id % log_every_n_batch == 0:
             logger.info('Average dev loss from batch {} to {} is {}'.format(
@@ -521,16 +556,9 @@ def train():
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    if args.log_path:
-        file_handler = logging.FileHandler(args.log_path)
-        file_handler.setLevel(logging.INFO)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    else:
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
 
     logger.info('Running with args : {}'.format(args))
 
@@ -800,6 +828,7 @@ def train_loop(args,
                 ],  # + [x[0] for x in names] + [x[0] for x in grad_names],
                 return_numpy=False)
             cost_train = np.array(fetch_outs[0]).mean()
+            #import pdb; pdb.set_trace()
             last_hidden_values = np.array(fetch_outs[1])
             last_hidden_values = last_hidden_values.reshape((
                 dev_count, args.num_layers * 2 * batch_size * args.embed_size))
