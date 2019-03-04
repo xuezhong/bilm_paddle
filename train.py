@@ -42,6 +42,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 from args import *
 import lm_model
 import logging
+logging.basicConfig()
 import pickle
 
 SEED = 123
