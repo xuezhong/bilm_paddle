@@ -804,6 +804,8 @@ def train_loop(args,
         last_cell_values = np.zeros(
             (dev_count, args.num_layers * 2 * batch_size * hidden_size),
             dtype='float32')
+
+        begin_time = time.time()
         for batch_id, batch_list in enumerate(train_reader(), 1):
             feed_data = batch_reader(batch_list, args)
             feed = list(feeder.feed_parallel(feed_data, dev_count))
@@ -853,16 +855,19 @@ def train_loop(args,
                 print_para(train_prog, parallel_executor, logger, optimizer,
                            args)
                 ppl = np.exp(n_batch_loss / n_batch_cnt)
-                logger.info("ppl from {} to {} is {} ".format(
-                    batch_id - log_interval, batch_id, ppl))
+                used_time = time.time() - begin_time
+                speed = log_interval / used_time
+                logger.info("[train] epoch:{}, step:{}, loss:{}, ppl:{}, speed:{}".format(
+                    epoch_id, batch_id, n_batch_loss/n_batch_cnt, ppl, speed))
                 n_batch_loss = 0.0
                 n_batch_cnt = 0
+                begin_time = time.time()
             if batch_id > 0 and batch_id % args.dev_interval == 0:
                 valid_ppl = eval(vocab, infer_progs, 
                                  dev_count, logger, args)
                 logger.info("valid ppl {}".format(valid_ppl))
             if batch_id > 0 and batch_id % args.save_interval == 0:
-                model_path = os.path.join("model_new/",
+                model_path = os.path.join(args.para_save_dir,
                                           str(batch_id + epoch_id))
                 if not os.path.isdir(model_path):
                     os.makedirs(model_path)
@@ -880,7 +885,7 @@ def train_loop(args,
                         (total_time / args.max_epoch))
             logger.info("lstm_language_model_loss\t%s" % ppl[0])
 
-        model_path = os.path.join("model_new/", str(epoch_id))
+        model_path = os.path.join(args.para_save_dir, str(epoch_id))
         if not os.path.isdir(model_path):
             os.makedirs(model_path)
         fluid.io.save_persistables(
