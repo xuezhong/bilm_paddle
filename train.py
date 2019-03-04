@@ -549,6 +549,9 @@ def eval(vocab, infer_progs, dev_count, logger,
 
 def train():
     args = parse_args()
+    if args.random_seed == 0:
+        args.random_seed = None
+        print("random seed is None")
     if args.enable_ce:
         random.seed(args.random_seed)
         np.random.seed(args.random_seed)
