@@ -357,6 +357,9 @@ class LMDataset(object):
         self._vocab = vocab
         self._all_shards = glob.glob(filepattern)
         print('Found %d shards at %s' % (len(self._all_shards), filepattern))
+        if test:
+            self._all_shards = list(np.random.choice(self._all_shards, size=4))
+            print('sampled %d shards at %s' % (len(self._all_shards), filepattern))
         self._shards_to_choose = []
 
         self._reverse = reverse

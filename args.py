@@ -101,7 +101,7 @@ def parse_args():
     parser.add_argument('--uniq_sample', type=bool, default=True)
     parser.add_argument('--use_custom_samples', type=bool, default=False)
     parser.add_argument('--para_load_dir', type=str, default='')
-    parser.add_argument('--para_save_dir', type=str, default='')
+    parser.add_argument('--para_save_dir', type=str, default='model_new')
     parser.add_argument('--train_path', type=str, default='')
     parser.add_argument('--test_path', type=str, default='')
     parser.add_argument('--update_method', type=str, default='nccl2')

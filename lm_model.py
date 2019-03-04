@@ -26,6 +26,7 @@ def dropout(input, test_mode, args):
         return layers.dropout(
             input,
             dropout_prob=args.dropout,
+            dropout_implementation="upscale_in_train",
             seed=args.random_seed,
             is_test=False)
     else:
