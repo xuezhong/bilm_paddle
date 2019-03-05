@@ -565,6 +565,7 @@ def train():
     console_handler.setFormatter(formatter)
 
     logger.info('Running with args : {}'.format(args))
+    logger.info('Running paddle : {}'.format(paddle.version.commit))
 
     hidden_size = args.hidden_size
     batch_size = args.batch_size
