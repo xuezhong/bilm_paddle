@@ -483,7 +483,7 @@ def eval(vocab, infer_progs, dev_count, logger, args):
     val_feeder = fluid.DataFeeder(val_feed_list, place)
     dev_data = data.BidirectionalLMDataset(
         args.test_path, vocab, test=True, shuffle_on_load=False)
-    dev_data_iter = lambda: dev_data.iter_batches(args.batch_size, args.num_steps)
+    dev_data_iter = lambda: dev_data.iter_batches(args.batch_size * dev_count, args.num_steps)
     dev_reader = read_multiple(dev_data_iter, batch_size, dev_count)
 
     last_hidden_values = np.zeros(
