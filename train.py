@@ -377,31 +377,33 @@ def batch_reader(batch_list, args):
     return res
 
 
-def read_multiple(reader, count, clip_last=True):
+def read_multiple(reader, batch_size, count, clip_last=True):
     """
     Stack data from reader for multi-devices.
     """
 
     def __impl__():
-        res = []
-        for item in reader():
-            res.append(item)
-            if len(res) == count:
-                yield res
+        # one time read batch_size * count data for rnn
+        for data in reader():
+            inst_num_per_part = batch_size
+            split_data = {}
+            len_check = True
+            for k in data.keys():
+                if data[k] is not None:
+                    if len(data[k]) != batch_size * count:
+                        len_check = False
+                        print("data check error!!, data=" + data[k] +  ", k=" + k)
+                        break
+            if len_check:
                 res = []
-        if len(res) == count:
-            yield res
-        elif not clip_last:
-            data = []
-            for item in res:
-                data += item
-            if len(data) > count:
-                inst_num_per_part = len(data) // count
-                yield [
-                    data[inst_num_per_part * i:inst_num_per_part * (i + 1)]
-                    for i in range(count)
-                ]
-
+                for i in range(count):
+                    split_data = {}
+                    for k in data.keys():
+                        if data[k] is not None:
+                            split_data[k] = data[k][inst_num_per_part * i:inst_num_per_part * (i + 1)]
+                    res.append(split_data)
+                yield res
+	
     return __impl__
 
 
@@ -482,7 +484,7 @@ def eval(vocab, infer_progs, dev_count, logger, args):
     dev_data = data.BidirectionalLMDataset(
         args.test_path, vocab, test=True, shuffle_on_load=False)
     dev_data_iter = lambda: dev_data.iter_batches(args.batch_size, args.num_steps)
-    dev_reader = read_multiple(dev_data_iter, dev_count)
+    dev_reader = read_multiple(dev_data_iter, batch_size, dev_count)
 
     last_hidden_values = np.zeros(
         (dev_count, args.num_layers * 2 * args.batch_size * args.embed_size),
@@ -797,8 +799,8 @@ def train_loop(args,
     for epoch_id in range(args.max_epoch):
         start_time = time.time()
         logger.info("epoch id {}".format(epoch_id))
-        train_data_iter = lambda: train_data.iter_batches(batch_size, args.num_steps)
-        train_reader = read_multiple(train_data_iter, dev_count)
+        train_data_iter = lambda: train_data.iter_batches(batch_size * dev_count, args.num_steps)
+        train_reader = read_multiple(train_data_iter, batch_size, dev_count)
 
         total_num = 0
         n_batch_loss = 0.0
