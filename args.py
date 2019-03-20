@@ -28,6 +28,11 @@ def parse_args():
         default="",
         help="Specify the path to load trained models.")
     parser.add_argument(
+        "--load_pretraning_params",
+        type=str,
+        default="",
+        help="Specify the path to load pretrained model parameters, NOT including moment and learning_rate")
+    parser.add_argument(
         "--batch_size",
         type=int,
         default=128,
