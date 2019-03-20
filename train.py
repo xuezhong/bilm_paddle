@@ -716,6 +716,25 @@ def train():
                     "environment var TRAINER_ROLE should be TRAINER os PSERVER")
                 exit(1)
 
+def init_pretraining_params(exe,
+                            pretraining_params_path,
+                            main_program):
+    assert os.path.exists(pretraining_params_path
+                          ), "[%s] cann't be found." % pretraining_params_path
+
+    def existed_params(var):
+        if not isinstance(var, fluid.framework.Parameter):
+            return False
+        return os.path.exists(os.path.join(pretraining_params_path, var.name))
+
+    fluid.io.load_vars(
+        exe,
+        pretraining_params_path,
+        main_program=main_program,
+        predicate=existed_params)
+    print("Load pretraining parameters from {}.".format(
+        pretraining_params_path))
+
 
 def train_loop(args,
                logger,
@@ -741,8 +760,13 @@ def train_loop(args,
         dev_count = fluid.core.get_cuda_device_count()
 
     if args.load_dir:
-        logger.info('load from {}'.format(args.load_dir))
+        logger.info('load pretrained checkpoints from {}'.format(args.load_dir))
+        # Todo: why not need to run train_startup_prog before load_persistables
         fluid.io.load_persistables(exe, args.load_dir, main_program=train_prog)
+    elif args.load_pretraning_params:
+        logger.info('load pretrained params from {}'.format(args.load_pretraning_params))
+        exe.run(train_startup_prog)
+        init_pretraining_params(exe, args.load_pretraning_params, main_program=train_prog)
     else:
         exe.run(train_startup_prog)
 
