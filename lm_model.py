@@ -240,6 +240,7 @@ class LanguageModel(object):
         losses = layers.concat([forward[-1], backward[-1]])
         self.loss = layers.reduce_mean(losses)
         self.loss.permissions = True
+        self.loss.persistable = True
 
         if args.debug:
             x_emb, projection, loss = forward
@@ -287,7 +288,9 @@ class LanguageModel(object):
             for x in fw_cells + bw_cells
         ]
         self.last_hidden = layers.concat(self.last_hidden, axis=0)
+        self.last_hidden.persistable = True
         self.last_cell = layers.concat(self.last_cell, axis=0)
+        self.last_cell.persistable = True
         if args.debug:
             layers.Print(self.last_cell, message='last_cell', summarize=10)
             layers.Print(self.last_hidden, message='last_hidden', summarize=10)
