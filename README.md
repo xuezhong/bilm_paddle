@@ -15,7 +15,12 @@ ELMo是一种新型深度语境化词表征，可对词进行复杂特征(如句
 ### 训练命令
 
 ## 预训练模型
-
+Broadly speaking, the process to train and use a new biLM is:
+1.Prepare input data and a vocabulary file.
+2.Train the biLM.
+3.Test (compute the perplexity of) the biLM on heldout data.
+4.Write out the weights from the trained biLM to a hdf5 file.
+5.See the instructions above for using the output from Step #4 in downstream models.
 
 
 
