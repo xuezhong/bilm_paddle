@@ -6,21 +6,31 @@ ELMo是一种新型深度语境化词表征，可对词进行复杂特征(如句
 这种算法的特点是：每一个词语的表征都是整个输入语句的函数。具体做法就是先在大语料上以language model为目标训练出bidirectional LSTM模型，然后利用LSTM产生词语的表征。ELMo故而得名(Embeddings from Language Models)。为了应用在下游的NLP任务中，一般先利用下游任务的语料库(注意这里忽略掉label)进行language model的微调,这种微调相当于一种domain transfer; 然后才利用label的信息进行supervised learning。
 
 ## 安装使用
+下载代码后，把elmo训练任务跑起来，分为三步：
+1.下载数据集和字典文件
+2.安装依赖库
+3.训练模型
 
 ### 数据准备
 利用download.sh下载词典和训练数据集和测试数据集。
+```shell
+sh download.sh
+```
 
 ### 第三方依赖安装
 
-### 训练命令
+### 训练模型
+```shell
+sh run.sh
+```
 
 ## 预训练模型
-Broadly speaking, the process to train and use a new biLM is:
-1.Prepare input data and a vocabulary file.
-2.Train the biLM.
-3.Test (compute the perplexity of) the biLM on heldout data.
-4.Write out the weights from the trained biLM to a hdf5 file.
-5.See the instructions above for using the output from Step #4 in downstream models.
+预训练模型要点：
+1.准备训练数据集trainset和测试数据集testset，准备一份词表如data/vocalubary.txt。
+2.训练模型
+3.测试模型结果
+4.把checkpoint结果写入文件中。
+5.把LEMO权重结果输入到其他NLP任务中。
 
 ### 数据预处理
 
@@ -50,8 +60,9 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 ## 服务部署
 
+
 ## 参考论文
 《Deep contextualized word representations》 https://arxiv.org/abs/1802.05365
 
-## 版本更新
-
+## Contributors
+本项目由百度自然语言处理部语义计算团队()和深度学习技术平台部 PaddlePaddle 团队()合作完成。
