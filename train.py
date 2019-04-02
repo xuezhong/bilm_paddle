@@ -31,11 +31,6 @@ import paddle.fluid.framework as framework
 from paddle.fluid.executor import Executor
 
 import data
-import sys
-if sys.version[0] == '2':
-    reload(sys)
-    sys.setdefaultencoding("utf-8")
-sys.path.append('..')
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
@@ -53,7 +48,6 @@ import collections
 
 name_dict = collections.OrderedDict()
 name_dict['embedding_para'] = 1
-#'''
 name_dict['lstmp_0.b_0'] = 21
 name_dict['fw_layer1_gate_w'] = 22
 name_dict['lstmp_0.w_0'] = 22
@@ -73,7 +67,6 @@ name_dict['lstmp_3.b_0'] = 51
 name_dict['bw_layer2_gate_w'] = 52
 name_dict['lstmp_3.w_0'] = 52
 name_dict['lstmp_3.w_1'] = 53
-#'''
 name_dict['softmax_weight'] = 62
 name_dict['softmax_bias'] = 61
 
@@ -198,7 +191,6 @@ def load_params(train_prog, train_exe, place, logger, args=None):
                 s = name_dict[name]
                 if s == slot:
                     card = 0
-                    #for scope in [train_exe.scope]:#train_exe.executor.local_scopes():
                     for scope in train_exe.executor.local_scopes():
                         tensor = scope.find_var(name).get_tensor()
                         shape = tensor.shape()
@@ -232,8 +224,7 @@ def load_para(train_prog, train_exe, place, logger, args=None):
 
 
 names = []
-grad_names = [
-]  #[['create_parameter_0.w_0@GRAD', 'create_parameter_0.w_0']]#,['embedding_para@GRAD', 'embedding_para']]
+grad_names = []
 
 
 def debug_init(train_prog, vars, vars_name):
@@ -373,7 +364,6 @@ def batch_reader(batch_list, args):
     res = []
     for batch in batch_list:
         res.append(prepare_batch_input(batch, args))
-        #res.append(prepare_batch_input(batch_list[0], args))
     return res
 
 
@@ -471,8 +461,6 @@ def eval(vocab, infer_progs, dev_count, logger, args):
         with open("infer_program.desc", 'w') as f:
             print(str(infer_prog), file=f)
 
-    # todo infer_startup_prog is not used, implicitly training scope will be used
-    # Use test set as validation each pass
     total_loss = 0.0
     total_cnt = 0
     n_batch_cnt = 0
@@ -507,9 +495,6 @@ def eval(vocab, infer_progs, dev_count, logger, args):
 
             feed[i]['init_hiddens'] = init_hidden_tensor
             feed[i]['init_cells'] = init_cell_tensor
-
-        #todo test pe has bug in r1.3
-        #import pdb; pdb.set_trace()
         last_hidden_values = []
         last_cell_values = []
         for i in range(dev_count):
@@ -519,7 +504,7 @@ def eval(vocab, infer_progs, dev_count, logger, args):
                 fetch_list=[
                     infer_model.loss.name, infer_model.last_hidden.name,
                     infer_model.last_cell.name
-                ],  # + [x[0] for x in names] + [x[0] for x in grad_names],
+                ],
                 return_numpy=False)
             last_hidden_values.append(np.array(val_fetch_outs[1]))
             last_cell_values.append(np.array(val_fetch_outs[2]))
@@ -670,11 +655,11 @@ def train():
                        trainers_num, trainer_id, worker_endpoints)
         else:
             port = os.getenv("PADDLE_PORT", "6174")
-            pserver_ips = os.getenv("PADDLE_PSERVERS")  # ip,ip...
+            pserver_ips = os.getenv("PADDLE_PSERVERS") 
             eplist = []
             for ip in pserver_ips.split(","):
                 eplist.append(':'.join([ip, port]))
-            pserver_endpoints = ",".join(eplist)  # ip:port,ip:port...
+            pserver_endpoints = ",".join(eplist) 
             trainers = int(os.getenv("PADDLE_TRAINERS_NUM", "0"))
             current_endpoint = os.getenv("POD_IP") + ":" + port
             trainer_id = int(os.getenv("PADDLE_TRAINER_ID"))
@@ -761,7 +746,6 @@ def train_loop(args,
 
     if args.load_dir:
         logger.info('load pretrained checkpoints from {}'.format(args.load_dir))
-        # Todo: why not need to run train_startup_prog before load_persistables
         fluid.io.load_persistables(exe, args.load_dir, main_program=train_prog)
     elif args.load_pretraning_params:
         logger.info('load pretrained params from {}'.format(args.load_pretraning_params))
@@ -858,10 +842,9 @@ def train_loop(args,
                 fetch_list=[
                     train_model.loss.name, train_model.last_hidden.name,
                     train_model.last_cell.name
-                ],  # + [x[0] for x in names] + [x[0] for x in grad_names],
+                ], 
                 return_numpy=False)
             cost_train = np.array(fetch_outs[0]).mean()
-            #import pdb; pdb.set_trace()
             last_hidden_values = np.array(fetch_outs[1])
             last_hidden_values = last_hidden_values.reshape(
                 (dev_count, args.num_layers * 2 * batch_size * args.embed_size))
@@ -869,18 +852,12 @@ def train_loop(args,
             last_cell_values = last_cell_values.reshape((
                 dev_count, args.num_layers * 2 * batch_size * args.hidden_size))
 
-            #vars = fetch_outs[2:2+len(names)]
-            #grad_vars = fetch_outs[2+len(names):]
-
             total_num += args.batch_size * dev_count
             n_batch_loss += np.array(fetch_outs[0]).sum()
-            #logger.info("n_batch_loss from {} to {} is {}, {} ".format(
-            #    batch_id - log_interval, batch_id, n_batch_loss,
-            #    np.array(fetch_outs[0]).sum()))
+
             n_batch_cnt += len(np.array(fetch_outs[0]))
 
             if batch_id > 0 and batch_id % log_interval == 0:
-                #vars_print(logger, args, vars=(vars, names), grad_vars=(grad_vars, grad_names))
                 print_para(train_prog, parallel_executor, logger, optimizer,
                            args)
                 smoothed_ppl = np.exp(n_batch_loss / n_batch_cnt)

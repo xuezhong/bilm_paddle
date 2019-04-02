@@ -52,9 +52,6 @@ def lstmp_encoder(input_seq, gate_size, h_0, c_0, para_name, proj_size, test_mod
                            size=gate_size * 4,
                            act=None,
                            bias_attr=False)
-    if args.debug:
-        layers.Print(input_seq, message='input_seq', summarize=10)
-        layers.Print(input_proj, message='input_proj', summarize=10)
     hidden, cell = layers.dynamic_lstmp(
         input=input_proj,
         size=gate_size * 4,
@@ -135,8 +132,6 @@ def encoder(x,
             label=y,
             num_samples=args.n_negative_samples_batch,
             seed=args.random_seed)
-        if args.debug:
-            layers.Print(loss, message='out_loss', summarize=100)
     else:
         label = layers.one_hot(input=y, depth=vocab_size)
         loss = layers.softmax_with_cross_entropy(
@@ -171,10 +166,6 @@ class LanguageModel(object):
             name="init_hiddens", shape=[1], dtype='float32')
         init_cells_ = layers.data(
             name="init_cells", shape=[1], dtype='float32')
-
-        if args.debug:
-            layers.Print(init_cells_, message='init_cells_', summarize=10)
-            layers.Print(init_hiddens_, message='init_hiddens_', summarize=10)
 
         init_hiddens = layers.reshape(
             init_hiddens_, shape=[2 * num_layers, -1, proj_size])
@@ -241,17 +232,6 @@ class LanguageModel(object):
         self.loss = layers.reduce_mean(losses)
         self.loss.permissions = True
         self.loss.persistable = True
-
-        if args.debug:
-            x_emb, projection, loss = forward
-            layers.Print(init_cells, message='init_cells', summarize=10)
-            layers.Print(init_hiddens, message='init_hiddens', summarize=10)
-            layers.Print(init_cell, message='init_cell', summarize=10)
-            layers.Print(y_b, message='y_b', summarize=10)
-            layers.Print(x_emb, message='x_emb', summarize=10)
-            layers.Print(projection, message='projection', summarize=10)
-            layers.Print(losses, message='losses', summarize=320)
-            layers.Print(self.loss, message='loss', summarize=320)
         self.grad_vars = [x_f, y_f, x_b, y_b, self.loss]
         self.grad_vars_name = ['x', 'y', 'x_r', 'y_r', 'final_loss']
         fw_vars_name = ['x_emb', 'proj', 'loss'] + [
@@ -291,6 +271,3 @@ class LanguageModel(object):
         self.last_hidden.persistable = True
         self.last_cell = layers.concat(self.last_cell, axis=0)
         self.last_cell.persistable = True
-        if args.debug:
-            layers.Print(self.last_cell, message='last_cell', summarize=10)
-            layers.Print(self.last_hidden, message='last_hidden', summarize=10)
