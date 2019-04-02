@@ -902,7 +902,7 @@ def train_loop(args,
             executor=exe, dirname=model_path, main_program=train_prog)
         valid_ppl = eval(vocab, infer_progs, dev_count, logger, args)
         logger.info("valid ppl {}".format(valid_ppl))
-    test_ppl = eval(vocab, infer_progs, dev_count, place, logger, args)
+    test_ppl = eval(vocab, infer_progs, dev_count, logger, args)
     logger.info("test ppl {}".format(test_ppl))
 
 
