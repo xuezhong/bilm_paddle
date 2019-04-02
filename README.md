@@ -5,6 +5,8 @@ ELMo是一种新型深度语境化词表征，可对词进行复杂特征(如句
 
 这种算法的特点是：每一个词语的表征都是整个输入语句的函数。具体做法就是先在大语料上以language model为目标训练出bidirectional LSTM模型，然后利用LSTM产生词语的表征。ELMo故而得名(Embeddings from Language Models)。为了应用在下游的NLP任务中，一般先利用下游任务的语料库(注意这里忽略掉label)进行language model的微调,这种微调相当于一种domain transfer; 然后才利用label的信息进行supervised learning。
 
+该模型复现《Deep contextualized word representations》 https://arxiv.org/abs/1802.05365。在百度NLP开源任务LAC中F1值提升约0.5%，验证对NLP任务有效。
+
 ## 安装使用
 下载代码后，把elmo训练任务跑起来，分为三步：
 1.下载数据集和字典文件
