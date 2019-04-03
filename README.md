@@ -15,22 +15,18 @@ Paddlepaddle lastest版本
 
 1.下载数据集和字典文件
 
-2.安装依赖库
-
-3.启动脚本训练模型
-
-### 数据准备
 利用download.sh下载词典和训练数据集和测试数据集。
 ```shell
 cd data && sh download.sh
 ```
 
-### 第三方依赖安装
+2.安装依赖库
+
 ```shell
 sh download_thirdparty.sh
 ```
 
-### 训练模型
+3.启动脚本训练模型
 ```shell
 sh run.sh
 ```
