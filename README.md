@@ -6,9 +6,9 @@ ELMO(Embeddings from Language Models)是一种新型深度语境化词表征，�
 ELMO把每一个词语的表征都是整个输入语句的函数，在大语料上以language model为训练目标训练出bidirectional LSTM模型，利用LSTM产生词语的表征，利用下游NLP任务(如问答、分类、命名实体识别等）进行微调。
 
 ## 基本配置版本
-python 2.7
+Python 2.7
 
-paddlepaddle lastest版本
+Paddlepaddle lastest版本
 
 ## 安装使用
 下载代码后，把elmo训练任务跑起来，分为三步：
