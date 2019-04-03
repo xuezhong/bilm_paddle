@@ -2,6 +2,7 @@
 
 ## 介绍
 ELMO(Embeddings from Language Models)是一种新型深度语境化词表征，可对词进行复杂特征(如句法和语义)和词在语言语境中的变化进行建模(即对多义词进行建模)。该模型支持多卡训练，训练速度比主流实现快1倍,  验证在中文词法分析任务上提升0.7%的精度。
+
 ELMO把每一个词语的表征都是整个输入语句的函数，在大语料上以language model为训练目标训练出bidirectional LSTM模型，然后利用LSTM产生词语的表征。为了应用在下游的NLP任务中，一般先利用下游任务的语料库进行language model的微调，然后才利用label的信息进行supervised learning。
 
 
