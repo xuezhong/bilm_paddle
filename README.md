@@ -60,6 +60,7 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 ## 如何利用ELMO做微调
 
 1.下载ELMO Paddle官方发布Checkout文件
+
 PaddlePaddle官方发布Checkout文件下载地址
 
 2.在train部分中加载ELMO checkpoint文件
