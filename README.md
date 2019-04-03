@@ -58,11 +58,11 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 ```
 
 ## 如何利用ELMO做微调
-用ELMO微调要点如下：
-#### 1.下载ELMO Paddle官方发布Checkout文件
+
+1.下载ELMO Paddle官方发布Checkout文件
 PaddlePaddle官方发布Checkout文件下载地址
 
-#### 2.在train部分中加载ELMO checkpoint文件
+2.在train部分中加载ELMO checkpoint文件
 ```shell
 src_pretrain_model_path = '490001' #490001为ELMO checkpoint文件
 def if_exist(var):
@@ -74,9 +74,10 @@ def if_exist(var):
 
 fluid.io.load_vars(executor=exe, dirname=src_pretrain_model_path, predicate=if_exist, main_program=main_program) 
 ```
-#### 3.在下游任务网络中加入bilm.py文件
 
-#### 4.在下游任务网络embedding部分加入ELMO网络的定义
+3.在下游任务网络中加入bilm.py文件
+
+4.在下游任务网络embedding部分加入ELMO网络的定义
 ```shell
 #引入 bilm.py 文件
 from bilm import elmo_encoder
