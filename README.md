@@ -7,6 +7,7 @@ ELMO把每一个词语的表征都是整个输入语句的函数，在大语料�
 
 ## 基本配置版本
 python 2.7
+
 paddlepaddle lastest版本
 
 ## 安装使用
