@@ -22,29 +22,29 @@ import paddle.fluid.layers as layers
 import paddle.fluid as fluid
 import numpy as np
 
-
-#if you use our release weight layers,do not use the args.
-para_init=False
-cell_clip=3.0
-proj_clip=3.0
-init1=0.1
-hidden_size=4096
-vocab_size=52445
-embed_size=512
-#according to orginal paper, dropout need to be modifyed on finetone
+# if you use our release weight layers,do not use the args.
+para_init = False
+cell_clip = 3.0
+proj_clip = 3.0
+init1 = 0.1
+hidden_size = 4096
+vocab_size = 52445
+embed_size = 512
+# according to orginal paper, dropout need to be modifyed on finetone
 modify_dropout = 1
 proj_size = 512
 num_layers = 2
-random_seed=123
-dropout_rate=0.5
+random_seed = 123
+dropout_rate = 0.5
+
 
 def dropout(input):
     return layers.dropout(
-            input,
-            dropout_prob=dropout_rate,
-            dropout_implementation="upscale_in_train",
-            seed=random_seed,
-            is_test=False)
+        input,
+        dropout_prob=dropout_rate,
+        dropout_implementation="upscale_in_train",
+        seed=random_seed,
+        is_test=False)
 
 
 def lstmp_encoder(input_seq, gate_size, h_0, c_0, para_name):
@@ -109,20 +109,19 @@ def encoder(x_emb,
         rnn_out.stop_gradient = True
         rnn_outs.append(rnn_out)
         rnn_outs_ori.append(rnn_out_ori)
-    #add weight layers for finetone
+    # add weight layers for finetone
     a1 = layers.create_parameter(
         [1], dtype="float32", name="gamma1")
     a2 = layers.create_parameter(
         [1], dtype="float32", name="gamma2")
-    rnn_outs[0].stop_gradient=True
-    rnn_outs[1].stop_gradient=True
-    num_layer1=rnn_outs[0]*a1
-    num_layer2=rnn_outs[1]*a2
-    output_layer=num_layer1*0.5+num_layer2*0.5
-    return  output_layer, rnn_outs_ori
+    rnn_outs[0].stop_gradient = True
+    rnn_outs[1].stop_gradient = True
+    num_layer1 = rnn_outs[0] * a1
+    num_layer2 = rnn_outs[1] * a2
+    output_layer = num_layer1 * 0.5 + num_layer2 * 0.5
+    return output_layer, rnn_outs_ori
 
 
-  
 def emb(x):
     x_emb = layers.embedding(
         input=x,
@@ -132,20 +131,20 @@ def emb(x):
         param_attr=fluid.ParamAttr(name='embedding_para'))
     return x_emb
 
-  
+
 def elmo_encoder(x_emb):
     lstm_outputs = []
-    x_emb_r=fluid.layers.sequence_reverse(x_emb, name=None)
+    x_emb_r = fluid.layers.sequence_reverse(x_emb, name=None)
     fw_hiddens, fw_hiddens_ori = encoder(
         x_emb,
         para_name='fw_')
     bw_hiddens, bw_hiddens_ori = encoder(
-         x_emb_r,
-         para_name='bw_')
-    embedding=layers.concat(input=[fw_hiddens,bw_hiddens],axis=1)
-    #add dropout on finetone
+        x_emb_r,
+        para_name='bw_')
+    embedding = layers.concat(input=[fw_hiddens, bw_hiddens], axis=1)
+    # add dropout on finetone
     embedding = dropout(embedding)
     a = layers.create_parameter(
         [1], dtype="float32", name="gamma")
-    embedding=embedding*a
+    embedding = embedding * a
     return embedding
